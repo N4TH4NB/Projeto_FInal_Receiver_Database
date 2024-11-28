@@ -1,0 +1,10 @@
+#ifndef CRED_H
+#define CRED_H
+
+// Defina suas credenciais de WiFi e do firebase
+#define WIFI_SSID "***"
+#define WIFI_PASSWORD "***"
+#define DATABASE_URL "***"
+#define API_KEY "***"
+
+#endif // CRED_H
