@@ -34,8 +34,6 @@ typedef struct struct_message
 } struct_message;
 struct_message myData;
 
-void authHandler();
-// void asyncCB(AsyncResult &aResult);
 void printResult(AsyncResult &aResult);
 void printError(int code, const String &msg);
 
@@ -86,7 +84,6 @@ void setup()
 
   ssl_client.setInsecure();
   initializeApp(aClient, app, getAuth(noAuth), aResult_no_callback);
-  authHandler();
 
   app.getApp<RealtimeDatabase>(Database);
   Database.url(DATABASE_URL);
@@ -109,45 +106,35 @@ void loop()
   if (millis() - previousMillis >= 5000)
   {
     previousMillis = millis();
-    JsonDocument jsonDoc;
-    jsonDoc["temp"] = myData.temp;
-    jsonDoc["press"] = myData.press;
-    jsonDoc["lum"] = myData.lum;
-    jsonDoc["tensao"] = myData.tensao;
-    jsonDoc["chuva"] = myData.chuva;
-    jsonDoc["lon"] = myData.lon;
-    jsonDoc["lat"] = myData.lat;
 
     char datetime[20];
     snprintf(datetime, sizeof(datetime), "%02d-%02d-%04dT%02d:%02d:%02d",
              myData.dia, myData.mes, myData.ano,
              myData.hora, myData.minuto, myData.segundo);
-    jsonDoc["hora"] = datetime;
+
+    JsonDocument jsonDoc;
+    jsonDoc["Temp"] = myData.temp;
+    jsonDoc["Press"] = myData.press;
+    jsonDoc["Lum"] = myData.lum;
+    jsonDoc["Tensao"] = myData.tensao;
+    jsonDoc["Chuva"] = myData.chuva;
+    jsonDoc["Lon"] = myData.lon;
+    jsonDoc["Lat"] = myData.lat;
+
     String jsonData;
     jsonDoc.shrinkToFit();
     serializeJson(jsonDoc, jsonData);
+    serializeJson(jsonDoc, Serial);
 
-    Serial.print("Push Json... ");
-    String name = Database.push<object_t>(aClient, "", object_t(jsonData));
-    if (aClient.lastError().code() == 0)
-      Firebase.printf("ok, name: %s\n", name.c_str());
+    String path = "data/hora/";
+    path += datetime;
+    path += "/Sensores";
+    Serial.print("Set Json... ");
+    bool status = Database.set<object_t>(aClient, path, object_t(jsonData));
+    if (status)
+      Serial.println("ok");
     else
       printError(aClient.lastError().code(), aClient.lastError().message());
-  }
-}
-
-void authHandler()
-{
-  // Blocking authentication handler with timeout
-  unsigned long ms = millis();
-  while (app.isInitialized() && !app.ready() && millis() - ms < 120 * 1000)
-  {
-    // The JWT token processor required for ServiceAuth and CustomAuth authentications.
-    // JWT is a static object of JWTClass and it's not thread safe.
-    // In multi-threaded operations (multi-FirebaseApp), you have to define JWTClass for each FirebaseApp,
-    // and set it to the FirebaseApp via FirebaseApp::setJWTProcessor(<JWTClass>), before calling initializeApp.
-    JWT.loop(app.getAuth());
-    printResult(aResult_no_callback);
   }
 }
 
