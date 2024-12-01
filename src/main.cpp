@@ -34,6 +34,8 @@ typedef struct struct_message
 } struct_message;
 struct_message myData;
 
+void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
+void sendData();
 void printResult(AsyncResult &aResult);
 void printError(int code, const String &msg);
 
@@ -44,26 +46,7 @@ WiFiClientSecure ssl_client;
 using AsyncClient = AsyncClientClass;
 AsyncClient aClient(ssl_client, getNetwork(network));
 RealtimeDatabase Database;
-// bool taskComplete = false;
 AsyncResult aResult_no_callback;
-
-// Callback de recebimento de dados ESP-NOW
-void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
-{
-  // Copia os dados recebidos
-  memcpy(&myData, incomingData, sizeof(myData));
-
-  // Exibe os dados no monitor serial
-  Serial.printf("Bytes recebidos: %d\n", len);
-  Serial.print("MAC Address: ");
-  for (int i = 0; i < 6; ++i)
-  {
-    Serial.printf("%02X", mac[i]);
-    if (i < 5)
-      Serial.print(":");
-  }
-  Serial.println();
-}
 
 void setup()
 {
@@ -80,7 +63,7 @@ void setup()
   Serial.printf("Canal Wi-Fi: %d\n", WiFi.channel());
 
   Firebase.printf("Firebase Client v%s\n", FIREBASE_CLIENT_VERSION);
-  Serial.println("Initializing app...");
+  Serial.println("Inicializando app...");
 
   ssl_client.setInsecure();
   initializeApp(aClient, app, getAuth(noAuth), aResult_no_callback);
@@ -103,40 +86,58 @@ void loop()
 {
   app.loop();
   Database.loop();
-  if (millis() - previousMillis >= 5000)
-  {
-    previousMillis = millis();
-
-    char datetime[20];
-    snprintf(datetime, sizeof(datetime), "%02d-%02d-%04dT%02d:%02d:%02d",
-             myData.dia, myData.mes, myData.ano,
-             myData.hora, myData.minuto, myData.segundo);
-
-    JsonDocument jsonDoc;
-    jsonDoc["Temp"] = myData.temp;
-    jsonDoc["Press"] = myData.press;
-    jsonDoc["Lum"] = myData.lum;
-    jsonDoc["Tensao"] = myData.tensao;
-    jsonDoc["Chuva"] = myData.chuva;
-    jsonDoc["Lon"] = myData.lon;
-    jsonDoc["Lat"] = myData.lat;
-
-    String jsonData;
-    jsonDoc.shrinkToFit();
-    serializeJson(jsonDoc, jsonData);
-    serializeJson(jsonDoc, Serial);
-
-    String path = "data/hora/";
-    path += datetime;
-    path += "/Sensores";
-    Serial.print("Set Json... ");
-    bool status = Database.set<object_t>(aClient, path, object_t(jsonData));
-    if (status)
-      Serial.println("ok");
-    else
-      printError(aClient.lastError().code(), aClient.lastError().message());
-  }
 }
+
+// Callback de recebimento de dados ESP-NOW
+void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
+{
+  // Copia os dados recebidos
+  memcpy(&myData, incomingData, sizeof(myData));
+
+  // Exibe os dados no monitor serial
+  Serial.printf("Bytes recebidos: %d\n", len);
+  Serial.print("MAC Address: ");
+  for (int i = 0; i < 6; ++i)
+  {
+    Serial.printf("%02X", mac[i]);
+    if (i < 5)
+      Serial.print(":");
+  }
+  Serial.println();
+  sendData();
+}
+
+void sendData()
+{
+  char datetime[20];
+  snprintf(datetime, sizeof(datetime), "%02d-%02d-%04dT%02d:%02d:%02d",
+           myData.dia, myData.mes, myData.ano,
+           myData.hora, myData.minuto, myData.segundo);
+
+  JsonDocument jsonDoc;
+  jsonDoc["Temp"] = myData.temp;
+  jsonDoc["Press"] = myData.press;
+  jsonDoc["Lum"] = myData.lum;
+  jsonDoc["Tensao"] = myData.tensao;
+  jsonDoc["Chuva"] = myData.chuva;
+  jsonDoc["Lon"] = myData.lon;
+  jsonDoc["Lat"] = myData.lat;
+
+  String jsonData;
+  jsonDoc.shrinkToFit();
+  serializeJson(jsonDoc, jsonData);
+  serializeJson(jsonDoc, Serial);
+
+  String path = "data/hora/";
+  path += datetime;
+  path += "/Sensores";
+  Serial.print("Set Json... ");
+  bool status = Database.set<object_t>(aClient, path, object_t(jsonData));
+  if (status)
+    Serial.println("ok");
+  else
+    printError(aClient.lastError().code(), aClient.lastError().message());
+};
 
 void printResult(AsyncResult &aResult)
 {
