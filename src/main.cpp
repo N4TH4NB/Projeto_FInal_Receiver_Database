@@ -1,38 +1,30 @@
 // Wifi e Esp-NOW
 #include <WiFi.h>
 #include <esp_now.h>
-
 // Firebase
 #include <FirebaseClient.h>
 #include <WiFiClientSecure.h>
-
 // Json
 #include <ArduinoJson.h>
-
-// Filesystem e credenciais de wifi e firebase
-#include "LittleFS.h"
+// Credenciais de wifi e firebase
 #include "cred.h"
 
 unsigned long previousMillis = 0;
 
-typedef struct struct_message
+// Estrutura de dados enviada
+typedef struct SensorData
 {
-  float temp;
-  float press;
-  float alt;
-  int lum;
-  float tensao;
+  float temperatura;
+  float pressao;
+  int luminosidade;
   int chuva;
-  long lon;
-  long lat;
+  int bateria;
+  long latitude;
+  long longitude;
   unsigned short ano;
-  unsigned char mes;
-  unsigned char dia;
-  unsigned char hora;
-  unsigned char minuto;
-  unsigned char segundo;
-} struct_message;
-struct_message myData;
+  unsigned char mes, dia, hora, minuto, segundo;
+} SensorData;
+SensorData sensorData;
 
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len);
 void sendData();
@@ -59,11 +51,11 @@ void setup()
     Serial.println("Conectando ao Wi-Fi...");
   }
   Serial.println("Wi-Fi conectado.");
-  Serial.printf("Endereço IP: %s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("Canal Wi-Fi: %d\n", WiFi.channel());
+  //Serial.printf("Endereço IP: %s\n", WiFi.localIP().toString().c_str());
+  //Serial.printf("Canal Wi-Fi: %d\n", WiFi.channel());
 
   Firebase.printf("Firebase Client v%s\n", FIREBASE_CLIENT_VERSION);
-  Serial.println("Inicializando app...");
+  Serial.println("Inicializando database...");
 
   ssl_client.setInsecure();
   initializeApp(aClient, app, getAuth(noAuth), aResult_no_callback);
@@ -92,7 +84,7 @@ void loop()
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 {
   // Copia os dados recebidos
-  memcpy(&myData, incomingData, sizeof(myData));
+  memcpy(&sensorData, incomingData, sizeof(sensorData));
 
   // Exibe os dados no monitor serial
   Serial.printf("Bytes recebidos: %d\n", len);
@@ -109,28 +101,28 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len)
 
 void sendData()
 {
-  char datetime[20];
-  snprintf(datetime, sizeof(datetime), "%02d-%02d-%04dT%02d:%02d:%02d",
-           myData.dia, myData.mes, myData.ano,
-           myData.hora, myData.minuto, myData.segundo);
+  char datetime[21];
+  snprintf(datetime, sizeof(datetime), "%04d-%02d-%02dT%02d:%02d:%02dZ",
+           sensorData.ano, sensorData.mes, sensorData.dia,
+           sensorData.hora, sensorData.minuto, sensorData.segundo);
+  Serial.print(datetime);
 
   JsonDocument jsonDoc;
-  jsonDoc["Temp"] = myData.temp;
-  jsonDoc["Press"] = myData.press;
-  jsonDoc["Lum"] = myData.lum;
-  jsonDoc["Tensao"] = myData.tensao;
-  jsonDoc["Chuva"] = myData.chuva;
-  jsonDoc["Lon"] = myData.lon;
-  jsonDoc["Lat"] = myData.lat;
+  jsonDoc["Temp"] = sensorData.temperatura;
+  jsonDoc["Press"] = sensorData.pressao;
+  jsonDoc["Lum"] = sensorData.luminosidade;
+  jsonDoc["Bat"] = sensorData.bateria;
+  jsonDoc["Chuva"] = sensorData.chuva;
+  jsonDoc["Lon"] = sensorData.longitude;
+  jsonDoc["Lat"] = sensorData.latitude;
 
   String jsonData;
   jsonDoc.shrinkToFit();
   serializeJson(jsonDoc, jsonData);
   serializeJson(jsonDoc, Serial);
 
-  String path = "data/hora/";
+  String path = "hora/";
   path += datetime;
-  path += "/Sensores";
   Serial.print("Set Json... ");
   bool status = Database.set<object_t>(aClient, path, object_t(jsonData));
   if (status)
@@ -145,12 +137,10 @@ void printResult(AsyncResult &aResult)
   {
     Firebase.printf("Event task: %s, msg: %s, code: %d\n", aResult.uid().c_str(), aResult.appEvent().message().c_str(), aResult.appEvent().code());
   }
-
   if (aResult.isDebug())
   {
     Firebase.printf("Debug task: %s, msg: %s\n", aResult.uid().c_str(), aResult.debug().c_str());
   }
-
   if (aResult.isError())
   {
     Firebase.printf("Error task: %s, msg: %s, code: %d\n", aResult.uid().c_str(), aResult.error().message().c_str(), aResult.error().code());
