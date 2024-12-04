@@ -12,7 +12,7 @@ typedef struct SensorData
   float temperatura;
   float pressao;
   int luminosidade;
-  int chuva;
+  float chuva;
   int bateria;
   long latitude;
   long longitude;
